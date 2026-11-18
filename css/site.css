@@ -126,10 +126,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* home hero */
 .hero { position: relative; isolation: isolate; padding: clamp(44px, 6vw, 84px) 0 clamp(48px, 6vw, 88px); border-bottom: 6px solid var(--tan); }
-/* backdrop: a piping schematic in the logo's tan, pinned to the right and faded out toward the headline */
-.hero::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url("../img/hero-lines.svg") right center / auto 100% no-repeat; opacity: .42; }
-.hero::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 57%, rgba(16, 17, 19, 0) 68%); }
-@media (max-width: 900px) { .hero::before { background-position: 78% top; background-size: auto 520px; opacity: .3; } .hero::after { background: linear-gradient(180deg, rgba(16, 17, 19, .55) 0%, var(--ink) 70%); } }
+/* backdrop: a hot water loop in the logo's tan. Supply main along the top, return along the bottom,
+   riser on the right. It sits in the hero's padding, clear of the headline and the card. */
+.hero::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url("../img/hero-lines.svg") right center / auto 100% no-repeat; opacity: .5; }
+.hero::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, var(--ink) 0%, rgba(16, 17, 19, .5) 22%, rgba(16, 17, 19, 0) 48%); }
+@media (max-width: 900px) { .hero::before, .hero::after { display: none; } }
 .hero__in { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: clamp(28px, 5vw, 72px); align-items: center; }
 .hero .lede { margin: 22px 0 28px; color: #dcdcd8; }
 .hero__facts { display: flex; flex-wrap: wrap; gap: 8px 26px; margin-top: 28px; font-weight: 500; color: #dcdcd8; }
