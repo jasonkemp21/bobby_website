@@ -115,12 +115,11 @@ def footer():
     <div>
       <h4>Contact</h4>
       <ul>
-        <li><a class="foot__tel" href="{TEL_HREF}">{TEL}</a></li>
+        <li><a href="{TEL_HREF}">{TEL}</a></li>
         <li><a href="mailto:{SITE['email']}">{SITE['email']}</a></li>
         <li>{SITE['hours']}</li>
         <li>Emergency calls any hour</li>
       </ul>
-      <p style="margin-top:16px">{book(cls="btn btn--red btn--sm")}</p>
     </div>
   </div>
   <div class="foot__base"><span>&copy; <span data-year>2026</span> Kennedy &amp; Smith Mechanical</span><span>Online booking by Housecall Pro. Site by Adaptive AI Services.</span></div>
