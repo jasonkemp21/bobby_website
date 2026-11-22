@@ -42,12 +42,11 @@
   if (doc.documentElement.hasAttribute('data-bundle')) {
     var pages = {};
     doc.querySelectorAll('[data-page]').forEach(function (el) { pages[el.getAttribute('data-page')] = el; });
-    var groups = { plumbing: 'services', 'water-heaters': 'services', heating: 'services', 'air-conditioning': 'services', emergency: 'services', 'main-line': 'service-areas', 'delaware-county': 'service-areas', philadelphia: 'service-areas' };
     var show = function (slug, scroll) {
       if (!pages[slug]) slug = 'home';
       Object.keys(pages).forEach(function (k) { pages[k].classList.toggle('is-on', k === slug); });
       doc.title = pages[slug].getAttribute('data-title');
-      var cur = groups[slug] || slug;
+      var cur = pages[slug].getAttribute('data-group') || slug;
       doc.querySelectorAll('[data-nav]').forEach(function (a) {
         if (a.getAttribute('data-nav') === cur) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
       });

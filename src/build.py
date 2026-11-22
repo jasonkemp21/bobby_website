@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-from content import SITE, TO_CONFIRM, SERVICES, AREA_PAGES, ALSO_NEARBY, AREAS_SHORT  # noqa: E402
+from content import SITE, OWNERS, TO_CONFIRM, SERVICES, AREA_PAGES, AREAS_SHORT, JOBS, HOME_JOBS  # noqa: E402
 from areamap import area_map_svg  # noqa: E402
 
 BOOK_URL = f"https://book.housecallpro.com/book/{SITE['hcp_org']}/{SITE['hcp_book_token']}?v2=true"
@@ -31,6 +31,8 @@ E = html.escape
 ICONS = {
     "wrench": '<path d="M15.2 3.6a4.6 4.6 0 0 0-4.3 6.2L4 16.7V20h3.3l6.9-6.9a4.6 4.6 0 0 0 6.2-4.3l-3 1.1-2.1-2.1z"/>',
     "tank": '<rect x="7" y="3" width="10" height="16"/><path d="M9 19v2M15 19v2M10 7h4"/><path d="M12 10.5c1.1 1.3 1.7 2.1 1.7 3a1.7 1.7 0 0 1-3.4 0c0-.9.6-1.7 1.7-3z"/>',
+    "hvac": '<rect x="4" y="4" width="16" height="16"/><circle cx="12" cy="12" r="5"/><path d="M12 7v10M7 12h10"/>',
+    "drop": '<path d="M12 3.5l4.2 6.2a5.2 5.2 0 1 1-8.4 0z"/>',
     "flame": '<path d="M12 3c.6 3.2 5 5.2 5 10.2A5 5 0 0 1 7 13.2c0-1.9.9-3.1 2-4.1.1 1.8.9 2.9 2 3 .2-3-.6-5.400 1-9.100z"/>',
     "snow": '<path d="M12 2.5v19M3.800 7.200l16.400 9.600M20.200 7.200L3.800 16.800"/><path d="M9.500 4.500L12 7l2.500-2.500M9.500 19.500L12 17l2.500 2.500"/>',
     "alert": '<path d="M12 3.500L21.500 20h-19z"/><path d="M12 10v4.500M12 17v.600"/>',
@@ -55,10 +57,10 @@ def call(cls="btn btn--line", label=None):
 
 # ---------------------------------------------------------------- shared chrome
 
-NAV = [("services", "Services"), ("maintenance-plans", "Maintenance plans"), ("service-areas", "Service areas"), ("about", "About"), ("contact", "Contact")]
+NAV = [("services", "Services"), ("service-areas", "Service areas"), ("about", "About"), ("contact", "Contact")]
 NAV_GROUP = {s["slug"]: "services" for s in SERVICES}
 NAV_GROUP.update({a["slug"]: "service-areas" for a in AREA_PAGES})
-NAV_GROUP["emergency"] = "services"
+BASE = f"{SITE['town']}, {SITE['state']}"
 
 
 def href(slug):
@@ -72,7 +74,7 @@ def header(current):
     return f"""<a class="skip" href="#main">Skip to content</a>
 <div class="util"><div class="wrap util__in">
   <span>Serving {AREAS_SHORT}</span>
-  <span class="util__r"><span>{SITE['hours']}</span><a href="emergency.html">Emergency? Call any hour</a></span>
+  <span class="util__r"><span>{SITE['hours']}</span><a href="about.html">Owner-operated in {BASE}</a></span>
 </div></div>
 <header class="head"><div class="wrap head__in">
   <a class="logo" href="index.html"><img src="img/ks-logo.webp" width="520" height="253" alt="Kennedy &amp; Smith Mechanical"></a>
@@ -95,16 +97,17 @@ def footer():
     lic.append("Insured")
     svc = "".join(f'<li><a href="{s["slug"]}.html">{s["name"]}</a></li>' for s in SERVICES)
     areas = "".join(f'<li><a href="{a["slug"]}.html">{a["name"]}</a></li>' for a in AREA_PAGES)
+    mails = "".join(f'<li><a href="mailto:{o["email"]}">{o["email"]}</a><span class="foot__sub">{o["trade"]}</span></li>' for o in OWNERS)
     return f"""<footer class="foot"><div class="wrap">
   <div class="foot__grid">
     <div>
       <img class="foot__logo" src="img/ks-logo-light.webp" width="520" height="253" alt="Kennedy &amp; Smith Mechanical">
-      <p>Locally owned plumbing, heating and cooling for {AREAS_SHORT}.</p>
+      <p>Owner-operated plumbing and HVAC, based in {SITE['town']}. Serving {AREAS_SHORT}.</p>
       <p class="foot__lic">{"<br>".join(lic)}</p>
     </div>
     <div>
       <h4>Services</h4>
-      <ul>{svc}<li><a href="emergency.html">Emergency service</a></li><li><a href="maintenance-plans.html">Maintenance plans</a></li></ul>
+      <ul>{svc}</ul>
     </div>
     <div>
       <h4>Service areas</h4>
@@ -116,9 +119,9 @@ def footer():
       <h4>Contact</h4>
       <ul>
         <li><a href="{TEL_HREF}">{TEL}</a></li>
-        <li><a href="mailto:{SITE['email']}">{SITE['email']}</a></li>
+        {mails}
         <li>{SITE['hours']}</li>
-        <li>Emergency calls any hour</li>
+        <li>{BASE}</li>
       </ul>
     </div>
   </div>
@@ -152,22 +155,49 @@ def book_band(h, p):
 </div></section>"""
 
 
-def phead(crumbs, h1, lede, photo=None, buttons=True, red=False):
+# ---------------------------------------------------------------- job photos
+
+def job_img(key, sizes, lazy=True):
+    """One of the owners' job photos (see JOBS in content.py), in two sizes."""
+    j = JOBS[key]
+    w, h = j.get("shape", (1200, 1500))
+    lz = ' loading="lazy"' if lazy else ""
+    return (f'<img src="img/job-{key}.webp" srcset="img/job-{key}-600.webp 600w, img/job-{key}.webp 1200w" sizes="{sizes}" '
+            f'width="{w}" height="{h}" alt="{E(j["alt"])}"{lz}>')
+
+
+def job_cap(key):
+    j = JOBS[key]
+    return f'<b>{E(j["title"])}</b><span>{E(j["text"])}</span>'
+
+
+def jobs_grid(keys, links=None):
+    """A ruled row of captioned job photos. With links, each cell goes to a service page."""
+    sizes = "(max-width: 700px) 50vw, 300px" if len(keys) > 3 else "(max-width: 700px) 100vw, 400px"
+    cells = ""
+    for i, k in enumerate(keys):
+        fig = f'<figure>{job_img(k, sizes)}<figcaption>{job_cap(k)}</figcaption></figure>'
+        cells += f'<a class="job" href="{links[i]}.html">{fig}</a>' if links else f'<div class="job">{fig}</div>'
+    return f'<div class="jobs jobs--{len(keys)}">{cells}</div>'
+
+
+def phead(crumbs, h1, lede, photo=None, buttons=True):
     trail = '<a href="index.html">Home</a>' + "".join(
         f' <span>/</span> <a href="{u}">{t}</a>' if u else f" <span>/</span> <span>{t}</span>" for t, u in crumbs)
-    pic = f'<figure class="photo"><img src="img/{photo[0]}.webp" width="1200" height="900" alt="{E(photo[1])}"></figure>' if photo else ""
+    pic = f'<figure class="photo photo--tall">{job_img(photo, "(max-width: 860px) 90vw, 420px", lazy=False)}</figure>' if photo else ""
     btns = f'<div class="btns">{book()}{call()}</div>' if buttons else ""
-    cls = "phead on-dark" + ("" if photo else " phead--plain") + (" phead--red" if red else "")
+    cls = "phead on-dark" + ("" if photo else " phead--plain")
     return f"""<section class="{cls}"><div class="wrap phead__in">
   <div><nav class="crumb" aria-label="Breadcrumb">{trail}</nav><h1 class="h1">{h1}</h1><p class="lede">{lede}</p>{btns}</div>
   {pic}
 </div></section>"""
 
 
+STEPS_HEAD = '<div class="sec-head sec-head--one"><div><p class="label">How a job goes</p><h2 class="h2">Three steps, no surprises</h2></div></div>'
 STEPS = """<ol class="steps">
-  <li><h3 class="h3">Book or call</h3><p>Pick a time online or call us. You get a confirmation by text or email.</p></li>
-  <li><h3 class="h3">We find the cause</h3><p>The tech looks at the whole problem, explains it in plain words and gives you a price.</p></li>
-  <li><h3 class="h3">You approve, we fix it</h3><p>Work starts when you say go. We test it, show you what we did and clean up.</p></li>
+  <li><h3 class="h3">Book or call</h3><p>Pick a time online or call. One of us comes out and looks at what you have now.</p></li>
+  <li><h3 class="h3">You get a price</h3><p>We explain the options in plain words and price each one. Nothing starts until you say go.</p></li>
+  <li><h3 class="h3">We install it</h3><p>An owner does the work, tests it, shows you how it runs and takes the old equipment away.</p></li>
 </ol>"""
 
 
@@ -179,49 +209,51 @@ def faq_block(faqs):
 # ---------------------------------------------------------------- pages
 
 def page_home():
+    bob, joe = OWNERS
     cards = ""
     for s in SERVICES:
         pts = "".join(f"<li>{p}</li>" for p in s["card_points"])
         cards += f'<a class="cat__c" href="{s["slug"]}.html">{icon(s["icon"], True)}<h3 class="h3">{s["name"]}</h3><p>{s["card"]}</p><ul>{pts}</ul><span class="more">{s["name"]}</span></a>'
-    cards += f'<a class="cat__c" href="maintenance-plans.html">{icon("plan", True)}<h3 class="h3">Maintenance plans</h3><p>Yearly tune-ups and priority scheduling, so small problems get caught early.</p><ul><li>Annual tune-ups</li><li>Priority scheduling</li><li>Repair discounts</li></ul><span class="more">See the plans</span></a>'
-    cards += f'<a class="cat__c is-red" href="emergency.html">{icon("alert", True)}<h3 class="h3">Emergency service</h3><p>Burst pipe, no heat, sewer backing up. Skip the form and call {TEL}.</p><span class="more">What to do right now</span></a>'
+    triage = "".join(f'<a href="{s["slug"]}.html"><div>{s["triage"][0]}<span>{s["triage"][1]}</span></div></a>' for s in SERVICES)
     return f"""<section class="hero on-dark"><div class="wrap hero__in">
   <div>
-    <p class="label">Plumbing &middot; Heating &middot; Cooling</p>
-    <h1 class="h1">Main Line &amp; Delco plumbing, heating and cooling</h1>
-    <p class="lede">Kennedy &amp; Smith Mechanical is a locally owned shop serving {AREAS_SHORT}. You get a price before any work starts, and you can book the visit online in about a minute.</p>
+    <p class="label">{BASE} &middot; Delaware County &middot; The Main Line</p>
+    <h1 class="h1">Heating, cooling and water systems, installed by the owners</h1>
+    <p class="lede">Kennedy &amp; Smith Mechanical is {bob['name']}, a master plumber, and {joe['name']}, a senior HVAC technician. We replace heating and cooling systems, install water heaters and fit water filtration and softeners in homes across {AREAS_SHORT}.</p>
     <div class="btns">{book()}{call()}</div>
-    <ul class="hero__facts"><li>Registered and insured in PA</li><li>Price before work starts</li><li>Locally owned</li></ul>
+    <ul class="hero__facts"><li>PA contractor #{E(SITE['pa_hic'])}</li><li>Owner-operated</li><li>Price before work starts</li></ul>
   </div>
-  <aside class="triage" aria-label="Start from the problem">
-    <div class="triage__h">What's going on?</div>
-    <a href="plumbing.html"><div>A leak, a clog or a drip<span>Plumbing repair</span></div></a>
-    <a href="water-heaters.html"><div>No hot water<span>Water heaters</span></div></a>
-    <a href="heating.html"><div>No heat or uneven heat<span>Furnaces and boilers</span></div></a>
-    <a href="air-conditioning.html"><div>AC not cooling<span>Air conditioning</span></div></a>
-    <a class="is-red" href="emergency.html"><div>It can't wait<span>Emergency service, call {TEL}</span></div></a>
+  <aside class="triage" aria-label="Start from what you need">
+    <div class="triage__h">What do you need?</div>
+    {triage}
+    <a class="is-red" href="{TEL_HREF}"><div>Rather talk it through?<span>Call {TEL}, {SITE['hours']}</span></div></a>
   </aside>
 </div></section>
 
 <section class="strip"><div class="wrap strip__in">
-  <div class="strip__c"><h3>Registered &amp; insured</h3><p>A Pennsylvania registered contractor. Proof of insurance on request.</p></div>
+  <div class="strip__c"><h3>Owner-operated</h3><p>Bob or Joe prices your job and does the work.</p></div>
+  <div class="strip__c"><h3>Registered &amp; insured</h3><p>PA Home Improvement Contractor #{E(SITE['pa_hic'])}.</p></div>
   <div class="strip__c"><h3>Price before work</h3><p>You see the number and approve it before we pick up a tool.</p></div>
   <div class="strip__c"><h3>Book online any time</h3><p>Pick a slot from your phone. Confirmation comes by text or email.</p></div>
-  <div class="strip__c"><h3>Emergency calls</h3><p>Burst pipe or no heat in January. Call any hour.</p></div>
 </div></section>
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><p class="label">What we do</p><h2 class="h2">One shop for the pipes, the heat and the air</h2></div><p class="lede grey">Most houses around here are old enough that the plumbing and the heating are tangled together. It helps to call someone who works on both.</p></div>
+  <div class="sec-head"><div><p class="label">What we do</p><h2 class="h2">A short list, done properly</h2></div><p class="lede grey">We are a two-man shop, so we stick to the installs we do best: heating and cooling systems, water heaters and water treatment.</p></div>
   <div class="cat">{cards}</div>
 </div></section>
 
 <section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">How a service call works</p><h2 class="h2">Three steps, no surprises</h2></div></div>
-  {STEPS}
+  <div class="sec-head"><div><p class="label">Our work</p><h2 class="h2">Every photo here is a job we did</h2></div><p class="lede grey">No stock pictures. These are our own installs, in customers' homes.</p></div>
+  {jobs_grid([k for k, _ in HOME_JOBS], [s for _, s in HOME_JOBS])}
 </div></section>
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><p class="label">Where we work</p><h2 class="h2">The Main Line, Delco and Philadelphia</h2></div><p class="lede grey">Our core area is Delaware County and the towns along the Main Line. We also work in Philadelphia and nearby parts of Montgomery and Chester counties.</p></div>
+  {STEPS_HEAD}
+  {STEPS}
+</div></section>
+
+<section class="sec sec--shop"><div class="wrap">
+  <div class="sec-head"><div><p class="label">Where we work</p><h2 class="h2">Delaware County and the Main Line</h2></div><p class="lede grey">We are based in {SITE['town']} and work in the towns around us, across Delaware County and out along the Main Line.</p></div>
   <div class="area">
     {map_block()}
     <div class="towns">
@@ -231,15 +263,15 @@ def page_home():
   </div>
 </div></section>
 
-<section class="sec sec--shop"><div class="wrap split">
+<section class="sec"><div class="wrap split">
   <div>
     <p class="label">About the shop</p>
-    <h2 class="h2">A local shop, not a call center</h2>
-    <p class="lede grey" style="margin-top:16px">Kennedy &amp; Smith Mechanical is owner-operated. The person who quotes your job is the person responsible for getting it right.</p>
-    <ul class="ticks"><li>A price you approve before work starts</li><li>Plain explanations of what failed and why</li><li>Drop cloths down and cleanup before we leave</li><li>Online booking with text and email confirmations</li></ul>
+    <h2 class="h2">Two owners, no call center</h2>
+    <p class="lede grey" style="margin-top:16px">Bob is a master plumber and Joe is a senior HVAC technician. They started Kennedy &amp; Smith in {SITE['town']} to take on fewer jobs and do each one properly.</p>
+    <ul class="ticks"><li>You deal with an owner from the first call to the finished job</li><li>A price you approve before work starts</li><li>Plain talk about your options, and no upselling</li><li>Drop cloths down and cleanup before we leave</li></ul>
     <p style="margin-top:26px"><a class="more" href="about.html">About Kennedy &amp; Smith</a></p>
   </div>
-  <figure class="photo"><img src="img/work-sink.webp" width="1200" height="900" alt="Plumber tightening a fitting under a kitchen sink" loading="lazy"></figure>
+  <figure class="photo">{job_img("ac-pair", "(max-width: 860px) 90vw, 540px")}</figure>
 </div></section>
 
 {book_band("Book a visit online", "Choose the service and a time that suits you. We confirm the appointment and send a reminder before we arrive.")}"""
@@ -247,7 +279,7 @@ def page_home():
 
 def map_block():
     return f"""<div class="map">{area_map_svg()}
-  <div class="map__key"><span><i style="background:#ead9bf"></i>Core area: Delaware County and the Main Line</span><span><i style="background:#fbfbfa"></i>Also served</span></div>
+  <div class="map__key"><span><i style="background:#ead9bf"></i>Where we work: Delaware County and the Main Line</span><span><i class="map__home"></i>Home base: {SITE['town']}</span></div>
 </div>"""
 
 
@@ -265,133 +297,57 @@ def page_services():
     rows = ""
     for s in SERVICES:
         rows += f"""<a class="cat__c" href="{s['slug']}.html">{icon(s['icon'], True)}<h3 class="h3">{s['name']}</h3><p>{s['lede']}</p><ul>{"".join(f"<li>{x}</li>" for x in s['handle'][:5])}</ul><span class="more">{s['name']}</span></a>"""
-    rows += f'<a class="cat__c" href="maintenance-plans.html">{icon("plan", True)}<h3 class="h3">Maintenance plans</h3><p>A yearly membership that covers tune-ups for your plumbing, your heating and cooling, or both.</p><ul><li>Annual tune-ups</li><li>Priority scheduling</li><li>Repair discounts</li><li>We track the dates for you</li></ul><span class="more">See the plans</span></a>'
-    rows += f'<a class="cat__c is-red" href="emergency.html">{icon("alert", True)}<h3 class="h3">Emergency service</h3><p>For a burst pipe, a sewer backup or no heat in freezing weather, call {TEL} at any hour. The page has steps to limit the damage while you wait.</p><span class="more">Emergency steps</span></a>'
-    return phead([("Services", None)], "Plumbing, heating and cooling services", "Repairs, replacements and yearly maintenance for homes across " + AREAS_SHORT + ".") + f"""
+    return phead([("Services", None)], "What we install", "Three kinds of jobs, each one done start to finish by the owners, for homes across " + AREAS_SHORT + ".") + f"""
 <section class="sec"><div class="wrap"><div class="cat">{rows}</div></div></section>
 <section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">How a service call works</p><h2 class="h2">Three steps, no surprises</h2></div></div>
+  {STEPS_HEAD}
   {STEPS}
 </div></section>
-{book_band("Not sure which one you need?", "Describe the problem when you book or call. We will sort out the rest.")}"""
+{book_band("Not sure which one you need?", "Describe what is going on when you book or call. We will sort out the rest.")}"""
 
 
 def page_service(s):
     handle = "".join(f"<li>{x}</li>" for x in s["handle"])
     signs = "".join(f"<div><dt>{E(t)}</dt><dd>{E(d)}</dd></div>" for t, d in s["signs"])
     others = "".join(f'<a href="{o["slug"]}.html"><h3 class="h3">{o["name"]}</h3><p>{o["card"]}</p><span class="more">{o["name"]}</span></a>' for o in SERVICES if o["slug"] != s["slug"])
-    return phead([("Services", "services.html"), (s["name"], None)], s["h1"], s["lede"], s["photo"]) + f"""
-<section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">{s['name']}</p><h2 class="h2">{s['handle_h']}</h2></div></div>
-  <ul class="sheet">{handle}</ul>
-</div></section>
-
-<section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">Know what you're looking at</p><h2 class="h2">{s['signs_h']}</h2></div></div>
-  <dl class="signs">{signs}</dl>
-  <div class="note" style="margin-top:40px"><h3 class="h3">{E(s['local'][0])}</h3><p>{E(s['local'][1])}</p></div>
-</div></section>
-
-<section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">How a service call works</p><h2 class="h2">Three steps, no surprises</h2></div></div>
-  {STEPS}
-</div></section>
-
-<section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">Common questions</p><h2 class="h2">{s['name']} questions</h2></div></div>
-  {faq_block(s['faqs'])}
-</div></section>
-
-<section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">Also from Kennedy &amp; Smith</p><h2 class="h2">Other services</h2></div></div>
-  <div class="acards">{others}</div>
-</div></section>
-
-{book_band(s['cta'][0], s['cta'][1])}"""
-
-
-def page_emergency():
-    return f"""<section class="phead phead--plain phead--red on-dark"><div class="wrap phead__in"><div>
-  <nav class="crumb" aria-label="Breadcrumb"><a href="index.html">Home</a> <span>/</span> <span>Emergency service</span></nav>
-  <h1 class="h1">Something broken right now?</h1>
-  <p class="lede">Don't fill out a form. Call, tell us what is happening, and we will tell you how fast we can be there.</p>
-  <a class="emg-tel" href="{TEL_HREF}">{TEL}</a>
-  <p style="margin:0;font-weight:600">Burst pipes, sewer backups, no heat, no hot water, flooding.</p>
-</div></div></section>
-
-<section class="sec"><div class="wrap">
-  <div class="gas">
-    <h3 class="h3">Smell gas? Leave first.</h3>
-    <p>Get everyone out of the building. Don't touch light switches and don't use a phone inside. From outside, call 911 or your gas utility: <a href="tel:+18008414141">PECO 1-800-841-4141</a> in the suburbs, <a href="tel:+12152351212">PGW 215-235-1212</a> in Philadelphia. Call us after the utility has made it safe, and we will repair the line.</p>
-  </div>
-</div></section>
-
-<section class="sec sec--shop" style="padding-top:0"><div class="wrap" style="padding-top:var(--gap)">
-  <div class="sec-head"><div><p class="label">While you wait</p><h2 class="h2">What to do right now</h2></div><p class="lede grey">A few minutes of the right steps can save a ceiling, a floor or a furnace.</p></div>
-  <div class="dos">
-    <div><h3 class="h3">Burst or leaking pipe</h3><ol><li>Close the main water shutoff. It is usually where the line enters the basement, by the meter.</li><li>Open the lowest faucet in the house to drain what is left in the pipes.</li><li>If water is near outlets or the panel, switch off power to that area at the breaker.</li><li>Move what you can and start soaking up water.</li></ol></div>
-    <div><h3 class="h3">Water heater leaking</h3><ol><li>Close the cold water valve on the pipe above the heater.</li><li>Gas unit: turn the dial on the gas valve to off. Electric unit: switch off its breaker.</li><li>If the tank is emptying onto the floor, run a hose from the drain valve to a floor drain or outside.</li></ol></div>
-    <div><h3 class="h3">No heat</h3><ol><li>Check that the thermostat is set to heat and its batteries are good.</li><li>Check the furnace or boiler switch and its breaker.</li><li>Replace the filter if it is clogged.</li><li>In freezing weather, open cabinet doors under sinks and let faucets drip so pipes do not freeze.</li></ol></div>
-    <div><h3 class="h3">Sewer backing up</h3><ol><li>Stop running water everywhere in the house. No flushing, no laundry, no dishwasher.</li><li>Keep children and pets away from the water.</li><li>Don't use chemical drain cleaner. It will not clear a main line and it makes the repair hazardous.</li></ol></div>
-    <div><h3 class="h3">Frozen pipe</h3><ol><li>Close the main shutoff in case the pipe has already split.</li><li>Open the faucet the pipe feeds.</li><li>Warm the pipe gently with a hair dryer, starting at the faucet end. Never use an open flame.</li></ol></div>
-    <div><h3 class="h3">Carbon monoxide alarm</h3><ol><li>Get everyone outside into fresh air.</li><li>Call 911 from outside.</li><li>Don't go back in or run the heat until the fire department clears the house. Then call us to find the cause.</li></ol></div>
-  </div>
-</div></section>
-
-<section class="sec"><div class="wrap split">
-  <div><p class="label">Not urgent?</p><h2 class="h2">Book a regular appointment</h2><p class="lede grey" style="margin-top:16px">If it can wait until business hours, booking online is the quickest way to get on the schedule.</p></div>
-  <div class="btns">{book()}<a class="btn btn--line" href="services.html">See all services</a></div>
-</div></section>
-
-<section class="book" style="background:var(--red);border-top-color:var(--ink)"><div class="wrap book__in">
-  <div><h2 class="h2">Still happening?</h2><p style="color:#fff">Stop reading and call.</p></div>
-  <div class="book__act"><a class="book__tel" href="{TEL_HREF}"><small style="color:#fff">Emergency line</small>{TEL}</a></div>
-</div></section>"""
-
-
-def page_plans():
-    def plan(tag, name, price, covers, blurb, items, main=False):
-        return f"""<div class="plan{' plan--main' if main else ''}"><div class="plan__top"><p class="plan__tag">{tag}</p><h3 class="h2">{name}</h3><p class="plan__price">${price}<small>per year</small></p></div>
-<div class="plan__body"><p><b>{covers}</b><br><span class="grey">{blurb}</span></p><ul class="ticks">{"".join(f"<li>{i}</li>" for i in items)}</ul><a class="btn{' btn--red' if main else ''}" href="contact.html">Ask about {name}</a></div></div>"""
-    return phead([("Maintenance plans", None)], "Maintenance plans", "A yearly tune-up catches the worn part before it becomes a no-heat call. Two plans, billed once a year.") + f"""
-<section class="sec"><div class="wrap">
-  <div class="sec-head"><div><p class="label">Pick a plan</p><h2 class="h2">Two plans, one price each</h2></div><p class="lede grey">Both are billed yearly. Cancel whenever you like.</p></div>
-  <div class="plans">
-    {plan("One system", "Homeshield Basic", 179, "Covers your plumbing or your heating and cooling.", "For a home that needs one system looked after.", ["1 tune-up a year", "Priority scheduling", "No dispatch fee on service calls", "10% off repairs", "Yearly safety check", "We remind you when it is due"])}
-    {plan("Whole house", "Homeshield Premium", 299, "Covers plumbing, heating and cooling.", "Heating checked in fall, cooling in spring, plumbing once a year.", ["2 tune-ups a year", "First in line for emergency calls", "No dispatch fee on service calls", "15% off repairs", "Yearly water heater flush", "Camera look at the main drain", "Transfers to the buyer if you sell"], main=True)}
-  </div>
-</div></section>
-
-<section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">How it works</p><h2 class="h2">Sign up once, then we keep track</h2></div></div>
-  <ol class="steps">
-    <li><h3 class="h3">Sign up</h3><p>Ask us by phone or through the contact form. We set the plan up on your account.</p></li>
-    <li><h3 class="h3">We schedule it</h3><p>When your tune-up is due we get in touch to book it. You don't have to remember.</p></li>
-    <li><h3 class="h3">You get priority</h3><p>When something does break, plan members go to the front of the schedule.</p></li>
-  </ol>
-</div></section>
-
-<section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">What a tune-up covers</p><h2 class="h2">What we check</h2></div></div>
-  <div class="trio">
-    <div><h3 class="h3">Heating</h3><p>Burners, igniter and flame sensor, heat exchanger, safety controls, filter, and carbon monoxide at the unit. On boilers: pressure, expansion tank, circulators and radiator vents.</p></div>
-    <div><h3 class="h3">Cooling</h3><p>Coils, capacitor and contactor, refrigerant pressures, condensate drain, and the temperature drop across the system.</p></div>
-    <div><h3 class="h3">Plumbing</h3><p>Water pressure, shutoff valves, visible supply and drain lines, toilets, the sump pump, and the water heater's relief valve and anode.</p></div>
-  </div>
-</div></section>
-
-{book_band("Want a plan?", "Tell us about your house and we will set you up with the one that fits.")}"""
+    if s["side"]:
+        # one more job photo, set beside the list of signs
+        signs_html = f"""<div class="split split--top"><dl class="signs signs--stack">{signs}</dl>
+    <div><figure class="photo photo--tall">{job_img(s['side'], "(max-width: 860px) 90vw, 540px")}</figure><p class="cap">{job_cap(s['side'])}</p></div></div>"""
+    else:
+        signs_html = f'<dl class="signs">{signs}</dl>'
+    blocks = [
+        f"""<div class="sec-head sec-head--one"><div><p class="label">{s['name']}</p><h2 class="h2">{s['handle_h']}</h2></div></div>
+  <ul class="sheet">{handle}</ul>""",
+        f"""<div class="sec-head sec-head--one"><div><p class="label">Know what you're looking at</p><h2 class="h2">{s['signs_h']}</h2></div></div>
+  {signs_html}
+  <div class="note" style="margin-top:40px"><h3 class="h3">{E(s['local'][0])}</h3><p>{E(s['local'][1])}</p></div>""",
+    ]
+    if s["jobs"]:
+        blocks.append(f"""<div class="sec-head sec-head--one"><div><p class="label">Our work</p><h2 class="h2">{s['jobs_h']}</h2></div></div>
+  {jobs_grid(s['jobs'])}""")
+    blocks += [
+        f"""{STEPS_HEAD}
+  {STEPS}""",
+        f"""<div class="sec-head sec-head--one"><div><p class="label">Common questions</p><h2 class="h2">{s['faq_h']}</h2></div></div>
+  {faq_block(s['faqs'])}""",
+        f"""<div class="sec-head sec-head--one"><div><p class="label">Also from Kennedy &amp; Smith</p><h2 class="h2">Other services</h2></div></div>
+  <div class="acards">{others}</div>""",
+    ]
+    # white and grey bands alternate down the page, however many blocks this service has
+    body = "\n\n".join(f'<section class="sec{" sec--shop" if i % 2 else ""}"><div class="wrap">\n  {b}\n</div></section>' for i, b in enumerate(blocks))
+    return phead([("Services", "services.html"), (s["name"], None)], s["h1"], s["lede"], s["photo"]) + "\n" + body + "\n\n" + book_band(s["cta"][0], s["cta"][1])
 
 
 def page_areas():
     cards = "".join(f'<a href="{a["slug"]}.html"><h3 class="h3">{a["name"]}</h3><p>{a["card"]}</p><span class="more">{a["name"]}</span></a>' for a in AREA_PAGES)
-    return phead([("Service areas", None)], "Where we work", "Delaware County and the Main Line are home base. We also cover Philadelphia and nearby parts of Montgomery and Chester counties.") + f"""
+    return phead([("Service areas", None)], "Where we work", f"We are based in {SITE['town']} and work across Delaware County and the towns along the Main Line.") + f"""
 <section class="sec"><div class="wrap">
   <div class="area">
     {map_block()}
     <div class="towns">
       {towns_block(link=True, full=True)}
-      <div><h3>Also nearby</h3><p>{", ".join(ALSO_NEARBY)}. Not sure about your town? Call and ask.</p></div>
+      <div><h3>Not sure about your town?</h3><p>If you are near the edge of the map, call {TEL} and ask.</p></div>
     </div>
   </div>
 </div></section>
@@ -419,41 +375,49 @@ def page_area(a):
   </div>
 </div></section>
 <section class="sec sec--shop"><div class="wrap">
-  <div class="sec-head sec-head--one"><div><p class="label">What we do here</p><h2 class="h2">Services {'on the Main Line' if a['slug'] == 'main-line' else 'in ' + a['name']}</h2></div></div>
-  <div class="cat" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">{svc}</div>
+  <div class="sec-head sec-head--one"><div><p class="label">What we do here</p><h2 class="h2">Services {a['where']}</h2></div></div>
+  <div class="cat">{svc}</div>
 </div></section>
 {book_band("Need someone out?", "Book a visit online or call " + TEL + ".")}"""
 
 
 def page_about():
-    return phead([("About", None)], "About Kennedy &amp; Smith Mechanical", "A locally owned plumbing, heating and cooling shop serving " + AREAS_SHORT + ".", buttons=False) + f"""
+    bob, joe = OWNERS
+    crew = "".join(f'<div><p class="crew__role">{E(o["role"])}</p><h3 class="h2">{E(o["name"])}</h3><p>{E(o["does"])}</p><p><a href="mailto:{o["email"]}">{o["email"]}</a></p></div>' for o in OWNERS)
+    return phead([("About", None)], "About Kennedy &amp; Smith Mechanical", f"A two-man, owner-operated plumbing and HVAC company based in {SITE['town']}, Pennsylvania.", buttons=False) + f"""
 <section class="sec"><div class="wrap split">
   <div>
     <p class="label">The shop</p>
-    <h2 class="h2">Small on purpose</h2>
+    <h2 class="h2">Two owners, both on the tools</h2>
     <div class="grey" style="margin-top:18px">
-      <p>Kennedy &amp; Smith Mechanical is owner-operated. There is no sales team and no call center. When you call, you reach the people who do the work.</p>
-      <p>We fix plumbing, water heaters, heating and air conditioning in houses that are often older than anyone living in them. That takes patience and a willingness to figure out what is behind the wall before quoting a price.</p>
-      <p>We would rather repair something properly than sell you a replacement you don't need, and we will say so when replacing really is the better call.</p>
+      <p>Kennedy &amp; Smith Mechanical is {bob['name']} and {joe['name']}. Bob is a master plumber. Joe is a senior HVAC technician. They started the company in {SITE['town']}, and they still do the work themselves.</p>
+      <p>It is two people on purpose. A small shop can take fewer jobs and give each one the time it needs, and that was the reason for starting one.</p>
+      <p>When you call, you talk to an owner. The same person looks at the job, prices it and installs it. Nobody here is paid to sell you more than you need.</p>
+      <p>They work in the towns they live in, often for people they know, and they would like to keep it that way.</p>
     </div>
   </div>
-  <figure class="photo"><img src="img/work-sink.webp" width="1200" height="900" alt="Plumber tightening a fitting under a kitchen sink" loading="lazy"></figure>
+  <div><figure class="photo photo--tall">{job_img("boiler", "(max-width: 860px) 90vw, 540px")}</figure><p class="cap">{job_cap("boiler")}</p></div>
 </div></section>
 
 <section class="sec sec--shop"><div class="wrap">
+  <div class="sec-head sec-head--one"><div><p class="label">Who you will deal with</p><h2 class="h2">The owners</h2></div></div>
+  <div class="crew">{crew}</div>
+</div></section>
+
+<section class="sec"><div class="wrap">
   <div class="sec-head sec-head--one"><div><p class="label">How we work</p><h2 class="h2">What you can expect</h2></div></div>
   <div class="trio">
-    <div><h3 class="h3">A price first</h3><p>We look at the problem, tell you what it costs to fix, and wait for your go-ahead. The price you approve is the price you pay.</p></div>
-    <div><h3 class="h3">Straight answers</h3><p>You hear what failed, why, and what your options are, including the cheap one.</p></div>
+    <div><h3 class="h3">A price first</h3><p>We look at the job, tell you what it costs and wait for your go-ahead. The price you approve is the price you pay.</p></div>
+    <div><h3 class="h3">Straight answers</h3><p>You hear what your options are, including the cheaper one, and what we would do in our own house.</p></div>
     <div><h3 class="h3">A clean job</h3><p>Drop cloths go down before tools come out, and we clean up before we leave.</p></div>
   </div>
   <div class="trio" style="margin-top:24px">
-    <div><h3 class="h3">Easy to reach</h3><p>Book online at any hour. You get a confirmation and a reminder, and you can call with questions.</p></div>
-    <div><h3 class="h3">Registered &amp; insured</h3><p>We are a registered Pennsylvania home improvement contractor and carry liability insurance. Ask and we will show you both.</p></div>
-    <div><h3 class="h3">Local</h3><p>We work where we live: {AREAS_SHORT}.</p></div>
+    <div><h3 class="h3">Easy to reach</h3><p>Book online at any hour, or call {SITE['hours']}. You get a confirmation and a reminder.</p></div>
+    <div><h3 class="h3">Registered &amp; insured</h3><p>Pennsylvania Home Improvement Contractor #{E(SITE['pa_hic'])}. We carry liability insurance and will show you proof if you ask.</p></div>
+    <div><h3 class="h3">Local</h3><p>Based in {SITE['town']}. We work across {AREAS_SHORT}.</p></div>
   </div>
 </div></section>
-{book_band("Let's get to work", "Book a visit online or call. Either way you will talk to someone who knows the trade.")}"""
+{book_band("Let's get to work", "Book a visit online or call. Either way you will be talking to an owner.")}"""
 
 
 def lead_form(bundle):
@@ -466,14 +430,19 @@ def lead_form(bundle):
 
 
 def page_contact(bundle):
-    return phead([("Contact", None)], "Contact us", "Book a standard visit online. For a quote, a bigger project or a question, send the form or call.", buttons=False) + f"""
+    mails = ""
+    for i, o in enumerate(OWNERS):
+        gap = ' style="margin-top:12px"' if i else ""
+        mails += f'<dd{gap}><a href="mailto:{o["email"]}">{o["email"]}</a><small>{o["trade"]}: {o["name"]}</small></dd>'
+    return phead([("Contact", None)], "Contact us", "Pick a time online and one of us will come out to price the job. If you have a question first, send the form, call or email.", buttons=False) + f"""
 <section class="sec"><div class="wrap contact">
   <div>
     <dl class="clist">
-      <div><dt>Phone</dt><dd><a href="{TEL_HREF}" style="color:var(--red)">{TEL}</a><small>Emergencies: call any hour</small></dd></div>
-      <div><dt>Email</dt><dd><a href="mailto:{SITE['email']}">{SITE['email']}</a></dd></div>
+      <div><dt>Phone</dt><dd><a href="{TEL_HREF}" style="color:var(--red)">{TEL}</a></dd></div>
+      <div><dt>Email</dt>{mails}</div>
       <div><dt>Hours</dt><dd>{SITE['hours']}</dd></div>
-      <div><dt>Service area</dt><dd>Main Line, Delaware County, Philadelphia<small><a href="service-areas.html">See the map and town list</a></small></dd></div>
+      <div><dt>Service area</dt><dd>{AREAS_SHORT}<small><a href="service-areas.html">See the map and town list</a></small></dd></div>
+      <div><dt>Based in</dt><dd>{BASE}</dd></div>
     </dl>
     <div style="margin-top:28px;display:grid;gap:12px;justify-items:start">
       <h3 class="h3">Know what you need?</h3>
@@ -486,16 +455,16 @@ def page_contact(bundle):
 
 
 def page_thanks():
-    return phead([("Request received", None)], "Thanks. We got it.", "Your request is in. Someone from Kennedy &amp; Smith will be in touch to confirm the details and set a time.", buttons=False) + f"""
+    return phead([("Request received", None)], "Thanks. We got it.", "Your request is in. Bob or Joe will be in touch to confirm the details and set a time.", buttons=False) + f"""
 <section class="sec"><div class="wrap">
   <div class="sec-head sec-head--one"><div><p class="label">What happens next</p><h2 class="h2">Three steps from here</h2></div></div>
   <ol class="steps">
     <li><h3 class="h3">We read it</h3><p>Requests are reviewed during business hours, {SITE['hours']}.</p></li>
     <li><h3 class="h3">We call or text</h3><p>We contact you at the number you gave to confirm the job and the time.</p></li>
-    <li><h3 class="h3">We show up</h3><p>The tech arrives in the window you picked with what the job needs.</p></li>
+    <li><h3 class="h3">We show up</h3><p>One of us arrives in the window you picked to look at the job and price it.</p></li>
   </ol>
   <div class="btns" style="margin-top:40px"><a class="btn" href="index.html">Back to home</a><a class="btn btn--line" href="services.html">Browse services</a></div>
-  <div class="note" style="margin-top:40px"><h3 class="h3">Can't wait?</h3><p>If this turned into an emergency, call <a href="{TEL_HREF}"><b>{TEL}</b></a> now.</p></div>
+  <div class="note" style="margin-top:40px"><h3 class="h3">Rather talk now?</h3><p>Call <a href="{TEL_HREF}"><b>{TEL}</b></a>, {SITE['hours']}.</p></div>
 </div></section>"""
 
 
@@ -503,24 +472,20 @@ def page_thanks():
 
 def pages(bundle=False):
     out = [
-        ("home", "Kennedy & Smith Mechanical | Plumbing, Heating & Cooling | Main Line & Delaware County",
-         "Locally owned plumbing, heating and cooling for the Main Line, Delaware County and Philadelphia. A price before work starts. Book online.", page_home()),
-        ("services", "Plumbing, Heating & Cooling Services | Kennedy & Smith Mechanical",
-         "Plumbing, water heaters, heating, air conditioning, maintenance plans and emergency service for the Main Line, Delaware County and Philadelphia.", page_services()),
+        ("home", "Kennedy & Smith Mechanical | HVAC Replacement, Water Heaters & Water Treatment | Delaware County & Main Line",
+         "Owner-operated plumbing and HVAC company in Havertown, PA. Heating and cooling replacement, water heaters, and water filtration and softeners for Delaware County and the Main Line. Book online.", page_home()),
+        ("services", "Services | HVAC Replacement, Water Heaters & Water Treatment | Kennedy & Smith Mechanical",
+         "Heating and cooling system replacement, water heater replacement, and water filtration and softeners for homes in Delaware County and on the Main Line.", page_services()),
     ]
     out += [(s["slug"], s["title"], s["desc"], page_service(s)) for s in SERVICES]
     out += [
-        ("emergency", "Emergency Plumber & No-Heat Service | Main Line & Delaware County | Kennedy & Smith Mechanical",
-         "Burst pipe, sewer backup or no heat? Call Kennedy & Smith Mechanical at any hour. Steps to limit the damage while you wait.", page_emergency()),
-        ("maintenance-plans", "Plumbing & HVAC Maintenance Plans | Kennedy & Smith Mechanical",
-         "Yearly plumbing and HVAC maintenance plans with tune-ups, priority scheduling and repair discounts.", page_plans()),
-        ("service-areas", "Service Areas | Main Line, Delaware County & Philadelphia | Kennedy & Smith Mechanical",
-         "Kennedy & Smith Mechanical serves Delaware County, the Main Line, Philadelphia and nearby parts of Montgomery and Chester counties. Map and town list.", page_areas()),
+        ("service-areas", "Service Areas | Delaware County & the Main Line | Kennedy & Smith Mechanical",
+         "Kennedy & Smith Mechanical is based in Havertown and serves Delaware County and the Main Line. Map and town list.", page_areas()),
     ]
     out += [(a["slug"], a["title"], a["desc"], page_area(a)) for a in AREA_PAGES]
     out += [
-        ("about", "About | Kennedy & Smith Mechanical", "Kennedy & Smith Mechanical is a locally owned plumbing, heating and cooling shop serving the Main Line, Delaware County and Philadelphia.", page_about()),
-        ("contact", "Contact & Request Service | Kennedy & Smith Mechanical", "Call, book online or send a request to Kennedy & Smith Mechanical.", page_contact(bundle)),
+        ("about", "About | Kennedy & Smith Mechanical", "Kennedy & Smith Mechanical is Bob Smith, a master plumber, and Joe Kennedy, a senior HVAC technician: a two-man, owner-operated company based in Havertown, PA.", page_about()),
+        ("contact", "Contact & Request Service | Kennedy & Smith Mechanical", "Call, email, book online or send a request to Kennedy & Smith Mechanical in Havertown, PA.", page_contact(bundle)),
         ("thanks", "Thanks | Kennedy & Smith Mechanical", "Your request was received.", page_thanks()),
     ]
     return out
@@ -535,8 +500,10 @@ def schema(slug):
     if slug == "home":
         biz = {
             "@context": "https://schema.org", "@type": ["Plumber", "HVACBusiness"], "name": SITE["name"], "url": SITE["domain"] + "/",
-            "telephone": SITE["phone_tel"], "email": SITE["email"], "image": SITE["domain"] + "/img/share.jpg", "openingHours": SITE["hours_schema"],
-            "areaServed": ["Delaware County, PA", "Main Line, PA", "Philadelphia, PA", "Montgomery County, PA", "Chester County, PA"],
+            "telephone": SITE["phone_tel"], "email": OWNERS[0]["email"], "image": SITE["domain"] + "/img/share.jpg", "openingHours": SITE["hours_schema"],
+            "address": {"@type": "PostalAddress", "addressLocality": SITE["town"], "addressRegion": SITE["state"], "addressCountry": "US"},
+            "areaServed": ["Delaware County, PA", "Main Line, PA"],
+            "founder": [{"@type": "Person", "name": o["name"], "jobTitle": o["role"]} for o in OWNERS],
             "potentialAction": {"@type": "ReserveAction", "target": BOOK_URL, "name": "Book online"},
         }
         blocks.append(biz)
@@ -597,6 +564,12 @@ def build_site():
 </html>
 """
         write(os.path.join(ROOT, href(slug)), doc)
+    # a page dropped from the list above must not stay behind in the folder Cloudflare serves
+    keep = {href(slug) for slug, *_ in all_pages}
+    for name in sorted(os.listdir(ROOT)):
+        if name.endswith(".html") and name not in keep:
+            os.remove(os.path.join(ROOT, name))
+            print("removed retired page:", name)
     # search engine files
     if SITE["preview"]:
         robots = "User-agent: *\nDisallow: /\n"
@@ -613,7 +586,7 @@ def build_bundle():
     booking buttons open Housecall Pro in a new tab instead."""
     all_pages = pages(bundle=True)
     on = ' class="is-on"'
-    secs = "".join(f'<div data-page="{slug}" data-title="{E(title)}"{on if slug == "home" else ""}>' + "\n" + body + "\n</div>\n" for slug, title, _, body in all_pages)
+    secs = "".join(f'<div data-page="{slug}" data-group="{NAV_GROUP.get(slug, slug)}" data-title="{E(title)}"{on if slug == "home" else ""}>' + "\n" + body + "\n</div>\n" for slug, title, _, body in all_pages)
     slug, title, desc, _ = all_pages[0]
     doc = f"""<!DOCTYPE html>
 <html lang="en" data-bundle>

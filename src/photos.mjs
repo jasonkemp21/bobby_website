@@ -1,6 +1,6 @@
-// One-off image pipeline: logo variants and graded photos. Run: node src/photos.mjs <stock-dir>
+// One-off image pipeline for the logo variants and the share image. Run: node src/photos.mjs
+// Job photos are handled by src/jobphotos.py.
 import { createRequire } from 'module';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
@@ -23,19 +23,4 @@ await sharp(LOGO).resize({ width: 520 }).webp({ quality: 92, alphaQuality: 100 }
 {
   const logo = await sharp(LOGO).resize({ width: 760 }).toBuffer();
   await sharp({ create: { width: 1200, height: 630, channels: 3, background: '#ffffff' } }).composite([{ input: logo, gravity: 'centre' }]).jpeg({ quality: 88 }).toFile(path.join(OUT, 'share.jpg'));
-}
-
-// Photos: one warm monochrome grade so stock and (later) real job photos sit together.
-const SRC = process.argv[2];
-const jobs = [
-  ['s9.jpg', 'work-sink', 1200, 900, 'attention'],
-  ['s8.jpg', 'work-trap', 1200, 900, 'attention'],
-  ['s2.jpg', 'work-pipe', 1200, 900, 'centre'],
-  ['s3.jpg', 'work-gauges', 1200, 900, 'centre', { left: 0, top: 820, width: 1800, height: 1350 }],
-];
-if (SRC) for (const [file, name, w, h, pos, box] of jobs) {
-  const p = path.join(SRC, file); if (!fs.existsSync(p)) { console.log('skip', file); continue; }
-  let im = sharp(p); if (box) im = im.extract(box);
-  await im.resize(w, h, { fit: 'cover', position: pos }).grayscale().linear(1.12, -14).tint({ r: 232, g: 220, b: 204 }).webp({ quality: 74 }).toFile(path.join(OUT, name + '.webp'));
-  console.log('wrote', name);
 }
